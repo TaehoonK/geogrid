@@ -18,11 +18,20 @@ public class ISEAProjectionTest {
     @Test
     public void projectionApartFromPoles() throws Exception {
         ISEAProjection p = new ISEAProjection();
-        p.setOrientationSymmetricEquator();
+        p.setOrientation(0,0);
+        //GeoCoordinates g = new GeoCoordinates(-82.95636854081724, -71.80894832544845);
+        GeoCoordinates c = new GeoCoordinates(34.6400223819d, 135.454610432d);
+        FaceCoordinates c2 = p.sphereToIcosahedron(c);
+        GeoCoordinates c3 = p.icosahedronToSphere(c2);
+        assertTrue(Math.abs(c3.getLat() - c.getLat()) < this._precision);
+        assertTrue((Math.abs(c3.getLon() - c.getLon()) % 360) * Trigonometric.cos(c.getLat()) < this._precision);
+
         for (int i = 0; i < this._iterations; i++) {
-            GeoCoordinates c = new GeoCoordinates(Math.random() * 179.99 - 89.995, Math.random() * 360);
-            FaceCoordinates c2 = p.sphereToIcosahedron(c);
-            GeoCoordinates c3 = p.icosahedronToSphere(c2);
+            c = new GeoCoordinates(Math.random() * 179.99 - 89.995, Math.random() * 360);
+            c2 = p.sphereToIcosahedron(c);
+            c3 = p.icosahedronToSphere(c2);
+            System.out.println(c.toString());
+            System.out.println(c3.toString());
             assertTrue(Math.abs(c3.getLat() - c.getLat()) < this._precision);
             assertTrue((Math.abs(c3.getLon() - c.getLon()) % 360) * Trigonometric.cos(c.getLat()) < this._precision);
         }

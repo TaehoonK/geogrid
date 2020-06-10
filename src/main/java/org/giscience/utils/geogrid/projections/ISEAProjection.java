@@ -54,11 +54,15 @@ public class ISEAProjection {
     // face constants
     private final double __E; // E
     private final double __F = Trigonometric.atan(1 / (2 * Math.pow(ISEAProjection._goldenRatio, 2))); // F = \atan(1 / (2 \phi^2)) where \phi = (1 + \sqrt{5}) / 2 is the golden ratio; needs some thinking to derive
+    private final double __V = Math.toDegrees(0.46364760899944494524);
+    private final int[] _tri_v = {0, 0, 0, 0, 0, 6, 7, 8, 9, 10, 2, 3, 4, 5, 1, 11, 11, 11, 11, 11};
     // alternative computation F = 90 + g - 2 * \atan(\phi); formula can easily be derived from the cartesian coordinates of the vertices of the icosahedron
     private final double __G; // G // this value incorporates R', and not R, as is stated wrongly in the paper by Snyder
     private final int __X = 36; // half the difference in latitude between two horizontally adjacent faces
     private final double[] __lats = new double[20];
     private final int[] __lons = new int[20];
+    private final double[] _vertex_triangle_lats = new double[12];
+    private final double[] _vertex_triangle_lons = new double[12];
     // precision
     private static final double _precision = 1e-9;
     private static final double _precisionPerDefinition = 1e-5;
@@ -130,6 +134,31 @@ public class ISEAProjection {
         this.__lons[17] = this.__X;
         this.__lons[18] = 3 * this.__X;
         this.__lons[19] = 5 * this.__X;
+
+        this._vertex_triangle_lats[0] = 90;
+        this._vertex_triangle_lats[1] = this.__V;
+        this._vertex_triangle_lats[2] = this.__V;
+        this._vertex_triangle_lats[3] = this.__V;
+        this._vertex_triangle_lats[4] = this.__V;
+        this._vertex_triangle_lats[5] = this.__V;
+        this._vertex_triangle_lats[6] = -this.__V;
+        this._vertex_triangle_lats[7] = -this.__V;
+        this._vertex_triangle_lats[8] = -this.__V;
+        this._vertex_triangle_lats[9] = -this.__V;
+        this._vertex_triangle_lats[10] = -this.__V;
+        this._vertex_triangle_lats[11] = -90;
+        this._vertex_triangle_lons[0] = 0;
+        this._vertex_triangle_lons[1] = 5 * this.__X;
+        this._vertex_triangle_lons[2] = -3 * this.__X;
+        this._vertex_triangle_lons[3] = -this.__X;
+        this._vertex_triangle_lons[4] = this.__X;
+        this._vertex_triangle_lons[5] = 3 * this.__X;
+        this._vertex_triangle_lons[6] = -4 * this.__X;
+        this._vertex_triangle_lons[7] = -2 * this.__X;
+        this._vertex_triangle_lons[8] = 0;
+        this._vertex_triangle_lons[9] = 2 * this.__X;
+        this._vertex_triangle_lons[10] = 4 * this.__X;
+        this._vertex_triangle_lons[11] = 0;
     }
 
     /**
@@ -281,20 +310,28 @@ public class ISEAProjection {
         for (int face : this._guessFace(c)) {
             double lat0 = this.getLat(face);
             double lon0 = this.getLon(face);
+            double lat1 = _vertex_triangle_lats[_tri_v[face]];
+            double lon1 = _vertex_triangle_lons[_tri_v[face]];
             double sinLat0 = Trigonometric.sin(lat0);
             double cosLat0 = Trigonometric.cos(lat0);
+            double sinLat1 = Trigonometric.sin(lat1);
+            double cosLat1 = Trigonometric.cos(lat1);
             double sinLonLon0 = Trigonometric.sin(c.getLon() - lon0 );
             double cosLonLon0 = Trigonometric.cos(c.getLon() - lon0 );
+            double sinLonLon1 = Trigonometric.sin(lon1 - lon0 );
+            double cosLonLon1 = Trigonometric.cos(lon1 - lon0 );
             double Az_earth = Trigonometric.atan2(cosLat * sinLonLon0, cosLat0 * sinLat - sinLat0 * cosLat * cosLonLon0); // Az
-            double AzAdjustment = (this.faceOrientation(face) > 0) ? 0 : 180;
-            Az_earth += AzAdjustment;
+            double AzAdjustment = Trigonometric.atan2(cosLat1 * sinLonLon1, cosLat0 * sinLat1 - sinLat0 * cosLat1 * cosLonLon1); // Az
+
+            Az_earth -= AzAdjustment;
+            AzAdjustment = 0;
             while (Az_earth < 0) {
-                AzAdjustment += this._AzMax;
                 Az_earth += this._AzMax;
+                AzAdjustment -= this._AzMax;
             }
             while (Az_earth > this._AzMax) {
-                AzAdjustment -= this._AzMax;
                 Az_earth -= this._AzMax;
+                AzAdjustment += this._AzMax;
             }
             double sinAz_earth = Trigonometric.sin(Az_earth); // \sin Az
             double cosAz_earth = Trigonometric.cos(Az_earth); // \cos Az
@@ -307,8 +344,8 @@ public class ISEAProjection {
             double sinAz = Trigonometric.sin(Az); // \sin Az'
             double cosAz = Trigonometric.cos(Az); // \cos Az'
             double f = this._compute_f(sinAz, cosAz, sinAz_earth, cosAz_earth); // f
-            double rho = this._2R * f * Trigonometric.sin(z / 2.); // \rho
-            Az -= AzAdjustment;
+            double rho = this._RR_earth * 2 * f * Trigonometric.sin(z / 2.); // \rho
+            Az += AzAdjustment;
             double x = rho * Trigonometric.sin(Az); // x
             double y = rho * Trigonometric.cos(Az); // y
             return new FaceCoordinates(face, x, y);
@@ -395,15 +432,16 @@ public class ISEAProjection {
     private GeoCoordinates _icosahedronToSphere(FaceCoordinates c) throws Exception {
         double Az = Trigonometric.atan2(c.getX(), c.getY()); // Az'
         double rho = Math.sqrt(Math.pow(c.getX(), 2) + Math.pow(c.getY(), 2)); // \rho
-        double AzAdjustment = (this.faceOrientation(c) > 0) ? 0 : 180;
-        Az += AzAdjustment;
+        double AzAdjustment = 0;//(this.faceOrientation(c) > 0) ? 0 : 180;
+
+        //Az += AzAdjustment;
         while (Az < 0) {
-            AzAdjustment += this._AzMax;
             Az += this._AzMax;
+            AzAdjustment -= this._AzMax;
         }
         while (Az > this._AzMax) {
-            AzAdjustment -= this._AzMax;
             Az -= this._AzMax;
+            AzAdjustment += this._AzMax;
         }
         double sinAz = Trigonometric.sin(Az); // \sin Az'
         double cosAz = Trigonometric.cos(Az); // \cos Az'
@@ -422,8 +460,8 @@ public class ISEAProjection {
         double sinAz_earth = Trigonometric.sin(Az_earth); // \sin Az
         double cosAz_earth = Trigonometric.cos(Az_earth); // \cos Az
         double f = this._compute_f(sinAz, cosAz, sinAz_earth, cosAz_earth); // f
-        double z = 2 * Trigonometric.asin(rho / (this._2R * f)); // z
-        Az_earth -= AzAdjustment;
+        double z = 2 * Trigonometric.asin(rho / (this._RR_earth * 2 * f)); // z
+        Az_earth += AzAdjustment;
         double sinLat0 = Trigonometric.sin(this._getLat(c)); // \sin \phi_0
         double cosLat0 = Trigonometric.cos(this._getLat(c)); // \cos \phi_0
         double sinZ = Trigonometric.sin(z); // \sin z
