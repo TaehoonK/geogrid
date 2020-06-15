@@ -20,7 +20,7 @@ public class ISEAProjectionTest {
         ISEAProjection p = new ISEAProjection();
         p.setOrientation(0,0);
         //GeoCoordinates g = new GeoCoordinates(-82.95636854081724, -71.80894832544845);
-        GeoCoordinates c = new GeoCoordinates(34.6400223819d, 135.454610432d);
+        GeoCoordinates c = new GeoCoordinates(-45.670508, -2.473789);
         FaceCoordinates c2 = p.sphereToIcosahedron(c);
         GeoCoordinates c3 = p.icosahedronToSphere(c2);
         assertTrue(Math.abs(c3.getLat() - c.getLat()) < this._precision);
